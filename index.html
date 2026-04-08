@@ -8,27 +8,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // 환경 변수 설정
-       const firebaseConfig = {
-  apiKey: "AIzaSyB98UvE1F_Sg01rwExrAAdlWnjMlZavJf4",
-  authDomain: "ggbb-19b7d.firebaseapp.com",
-  projectId: "ggbb-19b7d",
-  storageBucket: "ggbb-19b7d.firebasestorage.app",
-  messagingSenderId: "254782326022",
-  appId: "1:254782326022:web:3c94761b55a7cd17fe0a87",
-  measurementId: "G-PKWDS2D9ZQ"
-};
-
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyB98UvE1F_Sg01rwExrAAdlWnjMlZavJf4",
+            authDomain: "ggbb-19b7d.firebaseapp.com",
+            projectId: "ggbb-19b7d",
+            storageBucket: "ggbb-19b7d.firebasestorage.app",
+            messagingSenderId: "254782326022",
+            appId: "1:254782326022:web:3c94761b55a7cd17fe0a87"
+        };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'anti-corruption-pro-2026';
 
-        // 5대 법령 중급 난이도 문제 데이터
+        // 퀴즈 데이터
         const questions = [
             {
                 cat: "청탁금지법",
@@ -171,38 +169,42 @@
             allScores: []
         };
 
-        // 초기화 및 인증
+        // 인증 초기화 로직 보완
         async function initAuth() {
             onAuthStateChanged(auth, (user) => {
                 window.state.user = user;
                 if (user) {
-                    console.log("인증 완료:", user.uid);
+                    console.log("Authenticated:", user.uid);
                     loadData();
                 }
             });
 
             try {
-                // Canvas 환경에서는 가급적 signInAnonymously를 사용하되 인증 완료를 대기함
-                await signInAnonymously(auth);
+                // 1순위: 시스템 제공 토큰 사용
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    // 2순위: 익명 로그인 시도
+                    await signInAnonymously(auth);
+                }
             } catch (error) {
-                console.error("인증 오류:", error);
+                console.error("Auth Error:", error.message);
+                // 인증 실패 시에도 퀴즈는 진행할 수 있도록 알림만 표시
+                if (error.code === 'auth/configuration-not-found') {
+                    console.warn("Firebase 콘솔에서 익명 로그인을 활성화해야 기록 저장이 가능합니다.");
+                }
             }
         }
 
-        // 데이터 로드 (권한 에러 방지를 위해 규칙에 맞는 경로 사용)
         function loadData() {
             if (!window.state.user) return;
-            
-            // 필수: artifacts/{appId}/public/data/quiz_results 경로 사용
             const resultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'quiz_results');
-            
-            // 실시간 리스너에 에러 콜백 추가
             onSnapshot(resultsRef, (snapshot) => {
                 window.state.allScores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
                     .sort((a, b) => (b.ts?.seconds || 0) - (a.ts?.seconds || 0));
                 if (window.state.isAdmin) renderAdminTable();
-            }, (error) => {
-                console.error("데이터 수신 중 권한 오류 발생:", error);
+            }, (err) => {
+                console.warn("Firestore access restricted:", err.message);
             });
         }
 
@@ -281,8 +283,10 @@
                         uid: window.state.user.uid
                     });
                 } catch (e) {
-                    console.error("데이터 저장 실패:", e);
+                    console.error("Save Error:", e);
                 }
+            } else {
+                console.warn("결과가 저장되지 않았습니다. (인증 필요)");
             }
         }
 
@@ -317,12 +321,13 @@
                 try {
                     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quiz_results', id));
                 } catch (e) {
-                    console.error("삭제 실패:", e);
+                    console.error("Delete Error:", e);
                 }
             }
         };
 
         window.downloadExcel = () => {
+            if (window.state.allScores.length === 0) return alert("데이터가 없습니다.");
             const data = window.state.allScores.map(s => ({
                 이름: s.name,
                 점수: s.score,
@@ -338,7 +343,7 @@
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background: #f8fafc; }
+        body { font-family: 'Pretendard', sans-serif; background: #f8fafc; color: #1e293b; }
         .card { background: white; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
     </style>
 </head>
@@ -350,7 +355,7 @@
             <h1 class="text-2xl font-black text-slate-800 tracking-tight">반부패 실무 마스터 <span class="text-blue-600">PRO</span></h1>
             <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Anti-Corruption Advanced Quiz</p>
         </div>
-        <button onclick="toggleAdmin()" class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-white transition-all">
+        <button onclick="toggleAdmin()" class="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </button>
     </header>
@@ -364,7 +369,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" class="text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
             </div>
             <h2 class="text-2xl font-bold text-slate-800 mb-2">실무자를 위한 법령 테스트</h2>
-            <p class="text-slate-500 mb-10 leading-relaxed">이해충돌방지법부터 부패방지법까지,<br>총 10문항의 중급 난이도 퀴즈에 도전하세요.</p>
+            <p class="text-slate-500 mb-10 leading-relaxed">청탁금지법, 이해충돌방지법 등 5대 법령<br>중급 난이도 10문항에 도전하세요.</p>
             
             <div class="max-w-sm mx-auto">
                 <input type="text" id="name-input" placeholder="성함을 입력하세요" class="w-full p-4 bg-slate-100 rounded-xl mb-4 text-center font-bold text-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all">
@@ -400,7 +405,7 @@
         <section id="result-screen" class="hidden text-center py-8">
             <div class="text-5xl font-black text-blue-600 mb-4 tracking-tighter" id="final-score">0</div>
             <p class="text-xl font-bold text-slate-800 mb-2">수고하셨습니다!</p>
-            <p class="text-slate-500 mb-12">작성하신 답안이 저장되었습니다.</p>
+            <p class="text-slate-500 mb-12">평가를 완료했습니다. 결과는 관리자 대시보드에서 확인할 수 있습니다.</p>
             
             <button onclick="location.reload()" class="bg-slate-100 text-slate-600 px-8 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all">다시 하기</button>
         </section>
