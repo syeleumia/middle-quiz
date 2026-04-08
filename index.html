@@ -11,12 +11,8 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 환경 변수 설정
-       let firebaseConfig;
-        try{
-            firebaseConfig = JSON.parse(__firebase_config);
-        } catch (e) {
-            firebaseConfig = {
+        // Firebase 설정 (환경 변수 우선 사용)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyB98UvE1F_Sg01rwExrAAdlWnjMlZavJf4",
             authDomain: "ggbb-19b7d.firebaseapp.com",
             projectId: "ggbb-19b7d",
@@ -30,17 +26,7 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'anti-corruption-pro-2026';
 
-            window.state = {
-                user: null,
-                userName: "",
-                score: 0,
-                currentIndex: 0,
-                isAdmin: false,
-                leaderboard: []
-            };
-            
-
-        // 퀴즈 데이터
+        // 퀴즈 데이터 정의
         const questions = [
             {
                 cat: "청탁금지법",
@@ -53,7 +39,7 @@
                     "언론인이나 사립학교 교직원의 외부강의 사례금 상한액은 시간당 100만원이다."
                 ],
                 ans: 0,
-                exp: "국가공무원법 등에 따른 공무원은 직무와 관련하여 국가기관에서 강의를 할 경우 사례금 수수가 금지됩니다. (참고: 신고 기한은 마친 날부터 10일 이내입니다.)"
+                exp: "국가공무원법 등에 따른 공무원은 직무와 관련하여 국가기관에서 강의를 할 경우 사례금 수수가 금지됩니다."
             },
             {
                 cat: "이해충돌방지법",
@@ -79,7 +65,7 @@
                     "부정청구자가 해당 부정이익을 자진하여 신고하고 환수한 경우"
                 ],
                 ans: 0,
-                exp: "제재부가금 면제 기준액은 부정이익이 '10만원 이하'인 경우입니다. 100만원은 면제 대상이 아닙니다."
+                exp: "제재부가금 면제 기준액은 부정이익이 '10만원 이하'인 경우입니다."
             },
             {
                 cat: "행동강령",
@@ -92,7 +78,7 @@
                     "위의 설명은 모두 옳다."
                 ],
                 ans: 4,
-                exp: "행동강령은 가족 채용에 대한 엄격한 제한을 두고 있으나, 공정한 공개경쟁채용 과정을 통한 채용은 예외로 인정합니다."
+                exp: "행동강령은 공정한 공개경쟁채용 과정을 통한 채용은 예외로 인정합니다."
             },
             {
                 cat: "부패방지법",
@@ -105,340 +91,312 @@
                     "과태료 3천만원 부과"
                 ],
                 ans: 1,
-                exp: "비위면직자가 취업제한 규정을 위반하여 취업한 경우 2년 이하의 징역 또는 2천만원 이하의 벌금에 처해집니다."
-            },
-            {
-                cat: "청탁금지법",
-                q: "공직자등에게 허용되는 '원활한 직무수행, 사교·의례' 목적의 선물 가액 한도로 틀린 것은?",
-                opts: [
-                    "농수산물 및 농수산가공품 선물은 평상시 15만원까지 가능하다.",
-                    "물품 상품권(커피 기프티콘 등)은 5만원 한도 내에서 선물 가능하다.",
-                    "백화점 상품권 등 금액 상품권은 직무관련자로부터 원칙적으로 수수할 수 없다.",
-                    "추석·설 명절 기간(24일 전~후 5일) 농수산물 선물은 30만원까지 상향된다.",
-                    "음식물(식사비)과 선물을 함께 받는 경우 합산하여 5만원 이하여야 한다."
-                ],
-                ans: 4,
-                exp: "음식물(5만원)과 일반선물(5만원)을 함께 받는 경우 합산 5만원이 기준이지만, 농수산물 선물(15만원)과 함께 받는 경우 합산 15만원(단, 각 항목의 한도는 준수)까지 가능합니다."
-            },
-            {
-                cat: "이해충돌방지법",
-                q: "이해충돌방지법상 '사적 이해관계자'의 범위에 직접적으로 포함되지 않는 자는?",
-                opts: [
-                    "공직자 자신 또는 그 가족",
-                    "공직자 채용 시 직접적인 임용권자였던 자",
-                    "최근 2년 이내 퇴직한 공직자로서 퇴직 전 2년간 같은 부서에서 근무했던 자",
-                    "공직자가 지분 30%를 보유한 특수관계법인",
-                    "공직자의 배우자와 생계를 같이하지 않는 배우자의 형제자매"
-                ],
-                ans: 1,
-                exp: "임용권자였다는 사실만으로는 사적 이해관계자에 포함되지 않습니다. 법은 주로 퇴직자, 가족, 법인 등 실질적 이해관계 위주로 정의합니다."
-            },
-            {
-                cat: "행동강령",
-                q: "공무원이 자신의 직무와 관련하여 직무관련 공무원으로부터 금전을 빌리는 행위에 대한 설명으로 옳은 것은?",
-                opts: [
-                    "무이자로 빌리는 경우에만 신고 대상이다.",
-                    "친족(8촌 이내 혈족)으로부터 빌리는 경우에도 반드시 소속기관장에게 신고해야 한다.",
-                    "금융기관으로부터 대출을 받는 행위는 신고 대상이 아니다.",
-                    "차용증을 쓰고 시장 이자율을 지급한다면 신고할 필요가 없다.",
-                    "사전 신고가 원칙이며, 부득이한 경우 마친 날부터 10일 이내에 신고해야 한다."
-                ],
-                ans: 2,
-                exp: "금융기관 대출이나 친족으로부터 차용하는 경우는 신고 예외 사유에 해당합니다."
-            },
-            {
-                cat: "공공재정환수법",
-                q: "공공재정 부정청구 유형 중 '목적외 사용'에 해당하는 제재부가금 배수는?",
-                opts: [
-                    "부정이익의 1배",
-                    "부정이익의 2배",
-                    "부정이익의 3배",
-                    "부정이익의 5배",
-                    "제재부가금을 부과하지 않음"
-                ],
-                ans: 1,
-                exp: "허위청구는 5배, 과다청구는 3배, 목적외 사용은 2배의 제재부가금이 부과됩니다."
-            },
-            {
-                cat: "부패방지법",
-                q: "국민감사청구제도에 대한 설명 중 틀린 것은?",
-                opts: [
-                    "18세 이상의 국민은 공공기관의 사무처리가 법령위반 등으로 공익을 해치는 경우 청구할 수 있다.",
-                    "국민감사청구심의위원회의 결정에 따라 감사를 실시한다.",
-                    "청구 대상 기관에는 국회, 법원, 헌법재판소도 포함된다.",
-                    "300명 이상의 국민 연서가 필요하다.",
-                    "동일한 사안에 대해 감사원이 이미 감사를 실시한 경우 청구 대상에서 제외된다."
-                ],
-                ans: 2,
-                exp: "국가기관 중 국회, 법원, 헌법재판소, 선거관리위원회 또는 지방의회의 사무에 대하여는 별도의 청구 절차(국회감사청구 등)가 규정되어 있어 부패방지권익위법상 국민감사청구 대상에서는 제외됩니다."
+                exp: "비위면직자가 규정을 위반하여 취업한 경우 2년 이하의 징역 또는 2천만원 이하의 벌금에 처해집니다."
             }
         ];
 
-        
-       async function init() {
+        window.state = {
+            user: null,
+            userName: "",
+            score: 0,
+            currentIndex: 0,
+            isAdmin: false,
+            allScores: [],
+            unsubscribe: null
+        };
+
+        // 인증 초기화
+        async function initAuth() {
+            onAuthStateChanged(auth, (user) => {
+                window.state.user = user;
+                if (user) {
+                    console.log("Auth Success:", user.uid);
+                    // 인증이 완료된 후 데이터 로드 시작
+                    loadData();
+                }
+            });
+
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (err) {
-                console.error("인증 처리 중 오류 발생:", err);
+            } catch (error) {
+                console.error("Auth Failure:", error.code, error.message);
+                // 익명 로그인 실패 시에도 앱은 동작하도록 유지 (저장만 안됨)
             }
+        }
+
+        // 데이터 로드 함수 (실시간 리스너)
+        function loadData() {
+            if (!window.state.user) return;
             
-            onAuthStateChanged(auth, (user) => {
-                window.state.user = user;
-                if (user) {
-                    const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'scores');
-                    onSnapshot(scoresRef, (snapshot) => {
-                        window.state.leaderboard = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-                            .sort((a, b) => b.score - a.score);
-                        renderLeaderboard();
-                    }, (err) => {
-                        console.error("데이터 수신 오류 (권한 부족):", err);
+            // 기존 리스너가 있다면 제거
+            if (window.state.unsubscribe) window.state.unsubscribe();
+
+            // 데이터 경로 준수: /artifacts/{appId}/public/data/{collectionName}
+            const resultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'quiz_results');
+            
+            window.state.unsubscribe = onSnapshot(resultsRef, (snapshot) => {
+                window.state.allScores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                    .sort((a, b) => {
+                        const timeA = a.ts?.seconds || 0;
+                        const timeB = b.ts?.seconds || 0;
+                        return timeB - timeA;
                     });
+                
+                console.log("Data Loaded:", window.state.allScores.length, "items");
+                
+                if (window.state.isAdmin) {
+                    renderAdminTable();
                 }
+            }, (error) => {
+                console.error("Firestore Load Error:", error);
             });
         }
 
         window.startQuiz = () => {
-            const name = document.getElementById('user-name').value.trim();
+            const name = document.getElementById('name-input').value.trim();
             if (!name) return alert("성함을 입력해주세요.");
             window.state.userName = name;
-            document.getElementById('setup').classList.add('hidden');
-            document.getElementById('quiz').classList.remove('hidden');
-            showQuestion();
+            document.getElementById('welcome-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+            renderQuestion();
         };
 
-        function showQuestion() {
+        function renderQuestion() {
             const q = questions[window.state.currentIndex];
-            document.getElementById('q-cat').innerText = q.cat;
-            document.getElementById('q-num').innerText = `${window.state.currentIndex + 1} / 10`;
-            document.getElementById('q-text').innerText = q.q;
-            document.getElementById('progress').style.width = `${(window.state.currentIndex + 1) * 10}%`;
+            document.getElementById('progress-bar').style.width = `${((window.state.currentIndex + 1) / questions.length) * 100}%`;
+            document.getElementById('q-category').innerText = q.cat;
+            document.getElementById('q-title').innerText = `${window.state.currentIndex + 1}. ${q.q}`;
             
-            const optionsBox = document.getElementById('options');
-            optionsBox.innerHTML = q.opts.map((opt, i) => `
-                <button onclick="checkAnswer(${i})" class="opt-btn w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-indigo-600 transition-all font-medium flex items-center gap-3">
-                    <span class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:bg-indigo-100 group-hover:text-indigo-600">${i+1}</span>
-                    <span>${opt}</span>
-                </button>
-            `).join('');
-            document.getElementById('exp-box').classList.add('hidden');
+            const optionsDiv = document.getElementById('options-container');
+            optionsDiv.innerHTML = '';
+            q.opts.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-4 mb-3 border-2 border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all font-medium flex gap-3 items-start group";
+                btn.innerHTML = `
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs text-slate-500 group-hover:bg-blue-500 group-hover:text-white">${idx + 1}</span>
+                    <span class="flex-1">${opt}</span>
+                `;
+                btn.onclick = () => handleAnswer(idx);
+                optionsDiv.appendChild(btn);
+            });
+            document.getElementById('explanation-box').classList.add('hidden');
             document.getElementById('next-btn').classList.add('hidden');
         }
 
-        window.checkAnswer = (idx) => {
+        function handleAnswer(selectedIdx) {
             const q = questions[window.state.currentIndex];
-            const btns = document.querySelectorAll('.opt-btn');
-            btns.forEach(b => b.disabled = true);
+            const isCorrect = selectedIdx === q.ans;
+            const btns = document.getElementById('options-container').querySelectorAll('button');
             
-            if (idx === q.ans) {
-                window.state.score += 10;
-                btns[idx].classList.add('bg-green-50', 'border-green-500', 'text-green-700');
-            } else {
-                btns[idx].classList.add('bg-red-50', 'border-red-500', 'text-red-700');
-                btns[q.ans].classList.add('bg-green-50', 'border-green-500', 'text-green-700');
-            }
+            btns.forEach((btn, idx) => {
+                btn.disabled = true;
+                if (idx === q.ans) {
+                    btn.classList.add('border-green-500', 'bg-green-50');
+                } else if (idx === selectedIdx && !isCorrect) {
+                    btn.classList.add('border-red-500', 'bg-red-50');
+                }
+            });
+
+            if (isCorrect) window.state.score += 20; // 5문제 기준 20점씩
             
             document.getElementById('exp-text').innerText = q.exp;
-            document.getElementById('exp-box').classList.remove('hidden');
+            document.getElementById('explanation-box').classList.remove('hidden');
             document.getElementById('next-btn').classList.remove('hidden');
-        };
+        }
 
         window.nextStep = async () => {
-            if (window.state.currentIndex < 9) {
+            if (window.state.currentIndex < questions.length - 1) {
                 window.state.currentIndex++;
-                showQuestion();
+                renderQuestion();
             } else {
                 await finishQuiz();
             }
         };
 
         async function finishQuiz() {
-            document.getElementById('quiz').classList.add('hidden');
-            document.getElementById('result').classList.remove('hidden');
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
             document.getElementById('final-score').innerText = window.state.score;
             
             if (window.state.user) {
                 try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'quiz_results'), {
                         name: window.state.userName,
                         score: window.state.score,
-                        uid: window.state.user.uid,
-                        ts: serverTimestamp()
+                        ts: serverTimestamp(),
+                        uid: window.state.user.uid
                     });
                 } catch (e) {
-                    console.error("데이터 저장 실패:", e);
+                    console.error("Save Error:", e);
                 }
             }
         }
 
-        function renderLeaderboard() {
-            const tbody = document.getElementById('board-body');
-            const thDel = document.getElementById('th-del');
-            if (!tbody) return;
-
-            if (window.state.isAdmin) {
-                thDel.classList.remove('hidden');
-                document.getElementById('excel-btn').classList.remove('hidden');
-                document.getElementById('admin-badge').classList.remove('hidden');
+        window.toggleAdmin = () => {
+            const pw = prompt("관리자 인증번호를 입력하세요.");
+            if (pw === "2022284") {
+                window.state.isAdmin = true;
+                document.getElementById('admin-section').classList.remove('hidden');
+                // 관리자 전환 시 데이터 즉시 새로고침
+                loadData();
+                renderAdminTable();
+            } else {
+                alert("인증번호가 틀렸습니다.");
             }
+        };
 
-            if (window.state.leaderboard.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-400">데이터를 불러오고 있습니다...</td></tr>`;
+        function renderAdminTable() {
+            const tbody = document.getElementById('admin-body');
+            if (window.state.allScores.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400">등록된 성적이 없습니다.</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = window.state.leaderboard.map((item, i) => `
-                <tr class="border-b border-gray-50 hover:bg-slate-50 transition-colors">
-                    <td class="p-3 text-center">
-                        <span class="${i < 3 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'} w-6 h-6 inline-flex items-center justify-center rounded-full text-[10px] font-black">
-                            ${i+1}
-                        </span>
+            tbody.innerHTML = window.state.allScores.map((s, i) => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-3 text-center text-xs text-slate-500">${window.state.allScores.length - i}</td>
+                    <td class="p-3 font-bold text-slate-700">${s.name || '무명'}</td>
+                    <td class="p-3 text-blue-600 font-black">${s.score}점</td>
+                    <td class="p-3 text-xs text-slate-400">${s.ts ? new Date(s.ts.seconds * 1000).toLocaleString() : '방금 전'}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteRow('${s.id}')" class="text-red-400 hover:text-red-600 text-xs px-2 py-1">삭제</button>
                     </td>
-                    <td class="p-3">
-                        <div class="font-bold text-gray-700">${item.name || '무명'}</div>
-                        <div class="text-[10px] text-gray-400">${item.ts ? new Date(item.ts.seconds * 1000).toLocaleDateString() : '최근'}</div>
-                    </td>
-                    <td class="p-3 text-right font-black text-indigo-600">${item.score}점</td>
-                    ${window.state.isAdmin ? `
-                        <td class="p-3 text-right">
-                            <button onclick="deleteEntry('${item.id}')" class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-2 py-1 rounded text-[10px] font-bold transition-all">삭제</button>
-                        </td>
-                    ` : ''}
                 </tr>
             `).join('');
         }
 
-        window.deleteEntry = async (id) => {
-            if (!window.state.isAdmin) return;
-            if (confirm("이 기록을 삭제하시겠습니까?")) {
+        window.deleteRow = async (id) => {
+            if (!window.state.user) return;
+            if (confirm("해당 기록을 삭제하시겠습니까?")) {
                 try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'scores', id));
-                } catch (err) {
-                    alert("삭제 권한이 없거나 오류가 발생했습니다.");
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quiz_results', id));
+                } catch (e) {
+                    console.error("Delete Error:", e);
                 }
             }
         };
 
-        window.verifyAdmin = () => {
-            const pw = prompt("관리자 인증 번호를 입력하세요.");
-            if (pw === "2022284") {
-                window.state.isAdmin = true;
-                renderLeaderboard();
-                alert("관리자 모드가 활성화되었습니다. 모든 성적을 관리할 수 있습니다.");
-            } else if (pw !== null) {
-                alert("잘못된 번호입니다.");
-            }
-        };
-
         window.downloadExcel = () => {
-            if (!window.state.isAdmin) return;
-            const data = window.state.leaderboard.map((item, i) => ({
-                "순위": i + 1,
-                "성함": item.name,
-                "점수": item.score,
-                "응시시간": item.ts ? new Date(item.ts.seconds * 1000).toLocaleString() : ""
+            if (window.state.allScores.length === 0) return alert("데이터가 없습니다.");
+            const data = window.state.allScores.map(s => ({
+                이름: s.name,
+                점수: s.score,
+                일시: s.ts ? new Date(s.ts.seconds * 1000).toLocaleString() : '-'
             }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "성적표");
-            XLSX.writeFile(wb, `경기북부지사_성적결과_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.writeFile(wb, `반부패퀴즈_결과_${new Date().toLocaleDateString()}.xlsx`);
         };
 
-        window.onload = init;
+        window.onload = initAuth;
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
-        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background: #f8fafc; color: #1e293b; -webkit-font-smoothing: antialiased; }
+        .card { background: white; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 flex justify-center items-start">
-    <div class="max-w-xl w-full glass-card rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
-        <!-- Header -->
-        <header class="bg-indigo-950 p-8 text-white relative">
-            <div class="relative z-10">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-bold text-indigo-300 tracking-tighter uppercase">Northern Gyeonggi Branch</span>
-                    <span id="admin-badge" class="hidden bg-red-500 text-[10px] px-2 py-0.5 rounded font-black animate-pulse">ADMIN MODE</span>
-                </div>
-                <h1 class="text-2xl font-black leading-tight">2026 반부패 법령<br>초급 퀴즈 시스템</h1>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Header -->
+    <header class="w-full max-w-2xl mt-8 mb-6 flex justify-between items-center px-2">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800 tracking-tight">반부패 실무 마스터 <span class="text-blue-600">PRO</span></h1>
+            <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Anti-Corruption Advanced Quiz</p>
+        </div>
+        <button onclick="toggleAdmin()" class="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </button>
+    </header>
+
+    <!-- Main Card -->
+    <main class="w-full max-w-2xl card p-8 mb-8">
+        
+        <!-- Welcome Screen -->
+        <section id="welcome-screen" class="text-center py-12">
+            <div class="mb-8 inline-block p-4 bg-blue-50 rounded-3xl">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" class="text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
             </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">실무자를 위한 법령 테스트</h2>
+            <p class="text-slate-500 mb-10 leading-relaxed text-sm">청탁금지법, 이해충돌방지법 등 5대 법령의<br>실무 사례 중심 퀴즈에 도전하세요.</p>
             
-            <button onclick="verifyAdmin()" class="absolute bottom-4 right-4 text-indigo-400 hover:text-white transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+            <div class="max-w-sm mx-auto">
+                <input type="text" id="name-input" placeholder="성함을 입력하세요" class="w-full p-4 bg-slate-100 rounded-xl mb-4 text-center font-bold text-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <button onclick="startQuiz()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">테스트 시작</button>
+            </div>
+        </section>
+
+        <!-- Quiz Screen -->
+        <section id="quiz-screen" class="hidden">
+            <div class="mb-8">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="q-category" class="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase">CATEGORY</span>
+                    <span class="text-xs font-bold text-slate-400">PROGRESS</span>
+                </div>
+                <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-blue-600 transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <h3 id="q-title" class="text-xl font-bold text-slate-800 mb-8 leading-tight min-h-[4rem]">질문을 불러오는 중...</h3>
+            
+            <div id="options-container" class="mb-8"></div>
+
+            <div id="explanation-box" class="hidden mb-8 p-5 bg-slate-50 border-l-4 border-blue-500 rounded-r-xl">
+                <h4 class="text-blue-600 font-black text-xs mb-2 uppercase tracking-tighter">정답 및 해설</h4>
+                <p id="exp-text" class="text-sm text-slate-600 leading-relaxed font-medium"></p>
+            </div>
+
+            <button id="next-btn" onclick="nextStep()" class="hidden w-full bg-slate-800 text-white p-5 rounded-xl font-black text-lg hover:bg-black transition-all">다음 단계로</button>
+        </section>
+
+        <!-- Result Screen -->
+        <section id="result-screen" class="hidden text-center py-8">
+            <div class="text-6xl font-black text-blue-600 mb-4 tracking-tighter" id="final-score">0</div>
+            <p class="text-xl font-bold text-slate-800 mb-2">테스트 완료!</p>
+            <p class="text-slate-500 mb-12 text-sm">성적이 성공적으로 기록되었습니다.</p>
+            
+            <button onclick="location.reload()" class="bg-slate-100 text-slate-600 px-10 py-4 rounded-xl font-bold hover:bg-slate-200 transition-all">메인으로</button>
+        </section>
+    </main>
+
+    <!-- Admin Section -->
+    <section id="admin-section" class="w-full max-w-2xl card p-8 mb-12 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                실시간 응시 현황
+            </h2>
+            <button onclick="downloadExcel()" class="text-sm font-bold text-blue-600 flex items-center gap-1 hover:underline">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                엑셀 추출
             </button>
-        </header>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 border-y border-slate-100">
+                    <tr class="text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                        <th class="p-4 text-center w-12">NO</th>
+                        <th class="p-4 text-left">응시자</th>
+                        <th class="p-4 text-left">최종점수</th>
+                        <th class="p-4 text-left">완료시간</th>
+                        <th class="p-4 text-right">관리</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-body" class="text-sm">
+                    <tr><td colspan="5" class="p-8 text-center text-slate-400">데이터를 불러오는 중...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 
-        <main class="p-8">
-            <!-- Setup -->
-            <section id="setup" class="py-12 text-center">
-                <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-8 shadow-inner">👤</div>
-                <h2 class="text-2xl font-black text-slate-800 mb-2">교육생 본인 인증</h2>
-                <p class="text-slate-400 text-sm mb-10">지사 내 성적 집계를 위해 실명을 입력해주세요.</p>
-                <input type="text" id="user-name" class="w-full border-b-4 border-slate-100 p-4 mb-10 focus:border-indigo-600 outline-none text-center text-2xl font-black text-slate-700 transition-all placeholder:text-slate-200" placeholder="홍길동">
-                <button onclick="startQuiz()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl shadow-xl transition-all active:scale-95">퀴즈 시작하기</button>
-            </section>
+    <p class="text-[10px] text-slate-300 font-bold tracking-widest uppercase mb-12">© 2026 Anti-Corruption Education Platform</p>
 
-            <!-- Quiz -->
-            <section id="quiz" class="hidden">
-                <div class="flex justify-between items-end mb-4">
-                    <span id="q-cat" class="text-indigo-600 font-black text-xs uppercase bg-indigo-50 px-3 py-1 rounded-lg">CATEGORY</span>
-                    <span id="q-num" class="text-slate-300 font-bold text-sm italic">01 / 10</span>
-                </div>
-                <div class="h-3 w-full bg-slate-100 rounded-full mb-10 overflow-hidden">
-                    <div id="progress" class="h-full bg-indigo-600 transition-all duration-700" style="width: 0%"></div>
-                </div>
-                <h3 id="q-text" class="text-xl font-bold text-slate-800 mb-10 leading-relaxed min-h-[4rem]">질문을 불러오는 중...</h3>
-                <div id="options" class="space-y-4 mb-10"></div>
-                <div id="exp-box" class="hidden p-6 bg-slate-50 rounded-2xl border-l-4 border-indigo-600 mb-10 animate-fade-in">
-                    <p id="exp-text" class="text-sm text-slate-600 leading-relaxed font-medium"></p>
-                </div>
-                <button id="next-btn" onclick="nextStep()" class="hidden w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-black transition-all">다음 문항으로</button>
-            </section>
-
-            <!-- Result -->
-            <section id="result" class="hidden animate-fade-in">
-                <div class="text-center mb-12">
-                    <div class="text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">Your Final Score</div>
-                    <div class="text-8xl font-black text-indigo-600 tracking-tighter">
-                        <span id="final-score">0</span><span class="text-2xl text-slate-300 ml-1">/ 100</span>
-                    </div>
-                </div>
-                <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-xl shadow-slate-200/50">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="font-black text-slate-800 flex items-center gap-2">
-                            실시간 성적 랭킹
-                            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                        </h3>
-                        <button id="excel-btn" onclick="downloadExcel()" class="hidden bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-[10px] font-black hover:bg-emerald-600 hover:text-white transition-all">EXCEL 추출</button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="text-slate-400 font-black text-[10px] uppercase border-b border-slate-50">
-                                <tr>
-                                    <th class="p-3 w-10">RK</th>
-                                    <th class="p-3 text-left">Name</th>
-                                    <th class="p-3 text-right">Pts</th>
-                                    <th id="th-del" class="p-3 text-right hidden">Manage</th>
-                                </tr>
-                            </thead>
-                            <tbody id="board-body" class="font-medium"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <button onclick="location.reload()" class="mt-12 w-full text-slate-400 font-bold text-sm underline underline-offset-8 hover:text-indigo-600 transition-colors">테스트 다시 시작하기</button>
-            </section>
-        </main>
-        <footer class="p-8 pt-0 text-center">
-            <p class="text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em]">© 2026 Northern Gyeonggi Branch Anti-Corruption Education</p>
-        </footer>
-    </div>
 </body>
 </html>
